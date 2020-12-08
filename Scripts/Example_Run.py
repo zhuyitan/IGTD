@@ -13,7 +13,7 @@ save_image_size = 3
 max_step = 10000
 val_step = 300
 
-data = pd.read_csv('../Example_Data/Data.txt', low_memory=False, sep='\t', engine='c', na_values=['na', '-', ''],
+data = pd.read_csv('../Data/Data.txt', low_memory=False, sep='\t', engine='c', na_values=['na', '-', ''],
                      header=0, index_col=0)
 data = data.iloc[:, :num]
 norm_data = min_max_transform(data.values)

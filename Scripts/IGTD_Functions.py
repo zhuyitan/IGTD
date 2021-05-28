@@ -537,34 +537,52 @@ def generate_image_data(data, index, num_row, num_column, coord, image_folder=No
 
 
 def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image_size, max_step, val_step, normDir,
-                   error):
+                   error, switch_t=0, min_gain=0.00001):
     '''
-    This function accepts tabular data and rearranges the features into image/matrix format, and generates the data
-    in image format.
+    This function converts tabular data into images using the IGTD algorithm. 
 
     Input:
-    norm_d: original tabular data, 2D array or data frame, n_samples by n_features
-    scale: a list of two positive integers, the dimension of image for converting the tabular data.
-    fea_dist_method: method for calculating the distance/dissimilarity between features in tabular data.
-        There are three options.
-        'Pearson' uses Pearson correlation coefficient to evaluate similarity between features;
-        'Spearman' uses Spearman correlation coefficient to evaluate similarity between features;
-        'set' uses Jaccard index to evaluate similarity between features that are binary variables.
-    image_dist_method: method used to calculate the distance between pixels in image format.
-        Can be either 'Euclidean' or 'Manhattan'.
+    norm_d: a 2D array or data frame, which is the tabular data. Its size is n_samples by n_features
+    scale: a list of two positive integers. The number of pixel rows and columns in the image representations,
+        into which the tabular data will be converted.
+    fea_dist_method: a string indicating the method used for calculating the pairwise distances between features, 
+        for which there are three options.
+        'Pearson' uses the Pearson correlation coefficient to evaluate the similarity between features.
+        'Spearman' uses the Spearman correlation coefficient to evaluate the similarity between features.
+        'set' uses the Jaccard index to evaluate the similarity between features that are binary variables.
+    image_dist_method: a string indicating the method used for calculating the distances between pixels in image.
+        It can be either 'Euclidean' or 'Manhattan'.
     save_image_size: size of images (in inches) for saving visual results.
-    max_step: the maximum steps that the optimization algorithm should run if never converges.
-    val_step: number of steps for checking gain on the objective function to determine convergence
-    normDir: directory to save results
-    error: 'abs' or 'squared', indicating either using absolute error or square error.
-    parallel: bool, indicating whether parallel computing should be used. Currently, parallel computing
-        algorithm is implemented only for absolute error.
-    workers: positive integer indicating the number of processes used for parallel computing.
-        Used only when parallel is True.
-    step_worker: the number of optimization steps that should be taken in each worker process.
-        Used only when parallel is True.
-
+    max_step: the maximum number of iterations that the IGTD algorithm will run if never converges.
+    val_step: the number of iterations for determining algorithm convergence. If the error reduction rate is smaller than 
+        min_gain for val_step iterations, the algorithm converges.
+    normDir: a string indicating the directory to save result files.
+    error: a string indicating the function to evaluate the difference between feature distance ranking and pixel
+        distance ranking. 'abs' indicates the absolute function. 'squared' indicates the square function.
+    switch_t: in each iteration, if the smallest error change rate resulted from all possible feature swapping
+        is not larger than switch_t, the feature swapping that results in the smallest error change rate will
+        be performed. Error change rate is the difference between the errors after and before feature swapping
+        divided by the error before feature swapping. If switch_t <= 0, the IGTD algorithm monotonically reduces
+        the error during optimization.
+    min_gain: if the error reduction rate is not larger than min_gain for val_step iterations, the algorithm converges.
+    
     Return:
+    This function does not return any variable, but saves multiple result files, which are the following
+    1.  Results.pkl stores the original tabular data, the generated image data, and the names of samples. The generated
+        image data is a 3D numpy array. Its size is [number of pixel rows in image, number of pixel columns in image,
+        number of samples]. The range of values is [0, 255]. Small values in the array actually correspond to high
+        values in the tabular data.
+    2.  Results_Auxiliary.pkl stores the ranking matrix of pairwise feature distances before optimization,
+        the ranking matrix of pairwise pixel distances, the coordinates of pixels when concatenating pixels
+        row by row from image to form the pixel distance ranking matrix, error in each iteration,
+        and time (in seconds) when completing each iteration.
+    3.  original_feature_ranking.png shows the feature distance ranking matrix before optimization.
+    4.  image_ranking.png shows the pixel distance ranking matrix.
+    5.  error_and_runtime.png shows the change of error vs. time during the optimization process.
+    6.  error_and_iteration.png shows the change of error vs. iteration during the optimization process.
+    7.  optimized_feature_ranking.png shows the feature distance ranking matrix after optimization.
+    8.  data folder includes two image data files for each sample. The txt file is the image data in matrix format.
+        The png file shows the visualization of image data.
     '''
 
     if os.path.exists(normDir):
@@ -585,7 +603,7 @@ def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image
     plt.close(fig)
 
     index, err, time = IGTD(source=ranking_feature, target=ranking_image,
-        err_measure=error, max_step=max_step, switch_t=0.0, val_step=val_step, min_gain=0.00001, random_state=1,
+        err_measure=error, max_step=max_step, switch_t=switch_t, val_step=val_step, min_gain=min_gain, random_state=1,
         save_folder=normDir + '/' + error, file_name='')
 
     fig = plt.figure()

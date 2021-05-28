@@ -17,7 +17,7 @@ def min_max_transform(data):
     feature are 0 and 1, respectively.
 
     Input:
-    data: an input array of n_sample by n_feature
+    data: an input data array with a size of [n_sample, n_feature]
     Return:
     norm_data: the data array after transformation
     '''

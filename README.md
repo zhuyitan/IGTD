@@ -2,7 +2,7 @@
 
 ## Description
 
-Image Generator for Tabular Data (IGTD) is an algorithm for transforming tabular data into images. The algorithm assigns each feature to a unique pixel position in the image representation. Similar features are assigned to neighboring pixels, while dissimilar features are assigned to pixels that are far apart. According to the assignment, an image is generated for each sample, in which the pixel intensity reflects the value of the corresponding feature in the sample. One of the most important applications for the generated images is to build Convolutional Neural Networks (CNNs) based on the image representations in subsequent analysis. A publication about the IGTD algorithm is available at ***
+Image Generator for Tabular Data (IGTD) is an algorithm for transforming tabular data into images. The algorithm assigns each feature to a unique pixel position in the image representation. Similar features are assigned to neighboring pixels, while dissimilar features are assigned to pixels that are far apart. According to the assignment, an image is generated for each sample, in which the pixel intensity reflects the value of the corresponding feature in the sample. One of the most important applications for the generated images is to build Convolutional Neural Networks (CNNs) based on the image representations in subsequent analysis. A publication about the IGTD algorithm is available at https://www.nature.com/articles/s41598-021-90923-y
 
 ## User Community
 

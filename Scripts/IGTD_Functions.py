@@ -1,12 +1,12 @@
-from scipy.stats import spearmanr
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import os
-import shutil
-from scipy.stats import rankdata
-import time
+from scipy.stats import spearmanr, rankdata
 from scipy.spatial.distance import pdist, squareform
+
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import pandas as pd
+import shutil
+import time
 import _pickle as cp
 
 
@@ -559,11 +559,11 @@ def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image
     normDir: a string indicating the directory to save result files.
     error: a string indicating the function to evaluate the difference between feature distance ranking and pixel
         distance ranking. 'abs' indicates the absolute function. 'squared' indicates the square function.
-    switch_t: in each iteration, if the smallest error change rate resulted from all possible feature swapping
-        is not larger than switch_t, the feature swapping that results in the smallest error change rate will
-        be performed. Error change rate is the difference between the errors after and before feature swapping
-        divided by the error before feature swapping. If switch_t <= 0, the IGTD algorithm monotonically reduces
-        the error during optimization.
+    switch_t: the threshold on error change rate. Error change rate is
+        (error after feature swapping - error before feature swapping) / error before feature swapping.
+        In each iteration, if the smallest error change rate resulted from all possible feature swappings
+        is not larger than switch_t, the feature swapping resulting in the smallest error change rate will
+        be performed. If switch_t <= 0, the IGTD algorithm monotonically reduces the error during optimization.
     min_gain: if the error reduction rate is not larger than min_gain for val_step iterations, the algorithm converges.
     
     Return:

@@ -1,0 +1,31 @@
+[Global_Params]
+cancer_col_name='CancID'
+drug_col_name='DrugID'
+res_col_name='AUC'
+rlr_factor=0.1
+rlr_min_delta=0.000001
+rlr_cooldown=0
+rlr_min_lr=0.000001
+rlr_patience=10
+es_patience=20
+es_min_delta=0.000001
+classification_task=False
+cnn_activation='relu'
+
+output_dir='./Result/Test'
+conv=[[[16, 5, 5, 1, 1], [32, 5, 5, 1, 1], [64, 5, 5, 1, 1], [128, 5, 5, 1, 1]]]
+dropout=0.1
+epochs=20
+pool=[[2, 2]]
+dense=[1000, 500, 250, 125, 60]
+activation='relu'
+loss='mse'
+optimizer='Adam'
+verbose=True
+batch_size=16
+early_stop=False
+train_data='data_train_ccle_split_0.pkl'
+val_data='data_val_ccle_split_0.pkl'
+test_data='data_test_ccle_ccle_split_0.pkl'
+candle_data_dir='./Input_Data'
+data_url='https://ftp.mcs.anl.gov/pub/candle/public/improve/model_curation_data/IGTD/Processed_Data/'

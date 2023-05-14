@@ -1,13 +1,84 @@
-from scipy.stats import spearmanr
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import os
-import shutil
-from scipy.stats import rankdata
-import time
+from scipy.stats import spearmanr, rankdata
 from scipy.spatial.distance import pdist, squareform
+
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import pandas as pd
+import shutil
+import time
 import _pickle as cp
+import sys
+from astropy.stats import median_absolute_deviation
+
+
+def select_features_by_variation(data, variation_measure='var', threshold=None, num=None, draw_histogram=False,
+                                 bins=100, log=False):
+    '''
+    This function evaluates the variations of individual features and returns the indices of features with large
+    variations. Missing values are ignored in evaluating variation.
+
+    Parameters:
+    -----------
+    data: numpy array or pandas data frame of numeric values, with a shape of [n_samples, n_features].
+    variation_metric: string indicating the metric used for evaluating feature variation. 'var' indicates variance;
+        'std' indicates standard deviation; 'mad' indicates median absolute deviation. Default is 'var'.
+    threshold: float. Features with a variation larger than threshold will be selected. Default is None.
+    num: positive integer. It is the number of features to be selected based on variation.
+        The number of selected features will be the smaller of num and the total number of
+        features with non-missing variations. Default is None. threshold and portion can not take values
+        and be used simultaneously.
+    draw_histogram: boolean, whether to draw a histogram of feature variations. Default is False.
+    bins: positive integer, the number of bins in the histogram. Default is the smaller of 50 and the number of
+        features with non-missing variations.
+    log: boolean, indicating whether the histogram should be drawn on log scale.
+
+
+    Returns:
+    --------
+    indices: 1-D numpy array containing the indices of selected features. If both threshold and
+        portion are None, indices will be an empty array.
+    '''
+
+    if isinstance(data, pd.DataFrame):
+        data = data.values
+    elif not isinstance(data, np.ndarray):
+        print('Input data must be a numpy array or pandas data frame')
+        sys.exit(1)
+
+    if variation_measure == 'std':
+        v_all = np.nanstd(a=data, axis=0)
+    elif variation_measure == 'mad':
+        v_all = median_absolute_deviation(data=data, axis=0, ignore_nan=True)
+    else:
+        v_all = np.nanvar(a=data, axis=0)
+
+    indices = np.where(np.invert(np.isnan(v_all)))[0]
+    v = v_all[indices]
+
+    if draw_histogram:
+        if len(v) < 50:
+            print('There must be at least 50 features with variation measures to draw a histogram')
+        else:
+            bins = int(min(bins, len(v)))
+            _ = plt.hist(v, bins=bins, log=log)
+            plt.show()
+
+    if threshold is None and num is None:
+        return np.array([])
+    elif threshold is not None and num is not None:
+        print('threshold and portion can not be used simultaneously. Only one of them can take a real value')
+        sys.exit(1)
+
+    if threshold is not None:
+        indices = indices[np.where(v > threshold)[0]]
+    else:
+        n_f = int(min(num, len(v)))
+        indices = indices[np.argsort(-v)[:n_f]]
+
+    indices = np.sort(indices)
+
+    return indices
 
 
 
@@ -41,7 +112,8 @@ def generate_feature_distance_ranking(data, method='Pearson'):
 
     Input:
     data: input data, n_sample by n_feature
-    method: 'Pearson' uses Pearson correlation coefficient to evaluate similarity between features;
+    method: 'Euclidean' calculates similarity between features based on Euclidean distance;
+        'Pearson' uses Pearson correlation coefficient to evaluate similarity between features;
         'Spearman' uses Spearman correlation coefficient to evaluate similarity between features;
         'set' uses Jaccard index to evaluate similarity between features that are binary variables.
 
@@ -77,7 +149,7 @@ def generate_feature_distance_ranking(data, method='Pearson'):
 
 
 
-def generate_matrix_distance_ranking(num_r, num_c, method='Euclidean'):
+def generate_matrix_distance_ranking(num_r, num_c, method='Euclidean', num=None):
     '''
     This function calculates the ranking of distances between all pairs of entries in a matrix of size num_r by num_c.
 
@@ -85,12 +157,17 @@ def generate_matrix_distance_ranking(num_r, num_c, method='Euclidean'):
     num_r: number of rows in the matrix
     num_c: number of columns in the matrix
     method: method used to calculate distance. Can be 'Euclidean' or 'Manhattan'.
+    num: number of real features. If None, num = num_r * num_c. If num < num_r * num_c, num_r * num_c - num
+        zeros will be padded to the image representation.
 
     Return:
-    coordinate: num_r * num_c by 2 matrix giving the coordinates of elements in the matrix.
-    ranking: a num_r * num_c by num_r * num_c matrix giving the ranking of pair-wise distance.
+    coordinate: a num-by-2 matrix giving the coordinates of elements in the matrix.
+    ranking: a num-by-num matrix giving the ranking of pair-wise distance.
 
     '''
+
+    if num is None:
+        num = num_r * num_c
 
     # generate the coordinates of elements in a matrix
     for r in range(num_r):
@@ -98,9 +175,9 @@ def generate_matrix_distance_ranking(num_r, num_c, method='Euclidean'):
             coordinate = np.transpose(np.vstack((np.zeros(num_c), range(num_c))))
         else:
             coordinate = np.vstack((coordinate, np.transpose(np.vstack((np.ones(num_c) * r, range(num_c))))))
+    coordinate = coordinate[:num, :]
 
     # calculate the closeness of the elements
-    num = num_r * num_c
     cord_dist = np.zeros((num, num))
     if method == 'Euclidean':
         for i in range(num):
@@ -136,7 +213,7 @@ def IGTD_absolute_error(source, target, max_step=1000, switch_t=0, val_step=50, 
     source: a symmetric ranking matrix with zero diagonal elements.
     target: a symmetric ranking matrix with zero diagonal elements. 'source' and 'target' should have the same size.
     max_step: the maximum steps that the algorithm should run if never converges.
-    switch_t: the threshold to determine whether switch should happen
+    switch_t: the threshold to determine whether feature switching should happen
     val_step: number of steps for checking gain on the objective function to determine convergence
     min_gain: if the objective function is not improved more than 'min_gain' in 'val_step' steps,
         the algorithm terminates.
@@ -177,7 +254,7 @@ def IGTD_absolute_error(source, target, max_step=1000, switch_t=0, val_step=50, 
     run_time = [0]
 
     for s in range(max_step):
-        delta = np.ones(num) * np.inf
+        delta = - np.ones(num) * np.inf
 
         # randomly pick a row that has not been considered for the longest time
         idr = np.where(step_record == np.min(step_record))[0]
@@ -204,12 +281,12 @@ def IGTD_absolute_error(source, target, max_step=1000, switch_t=0, val_step=50, 
                     np.sum(np.abs(source[(j + 1):, i] - target[(j + 1):, j])) + np.abs(source[i, j] - target[j, i])
             err_test = err_i + err_j - np.abs(source[i, j] - target[j, i])
 
-            delta[jj] = err_test - err_ori
+            delta[jj] = err_ori - err_test
 
         delta_norm = delta / pre_err
-        id = np.where(delta_norm <= switch_t)[0]
+        id = np.where(delta_norm >= switch_t)[0]
         if len(id) > 0:
-            jj = np.argmin(delta)
+            jj = np.argmax(delta)
 
             # Update the error associated with each row
             if ii < jj:
@@ -246,7 +323,7 @@ def IGTD_absolute_error(source, target, max_step=1000, switch_t=0, val_step=50, 
             jj_v = source[:, jj].copy()
             source[:, ii] = jj_v
             source[:, jj] = ii_v
-            err = delta[jj] + pre_err
+            err = pre_err - delta[jj]
 
             # update rearrange index
             t = index[ii]
@@ -303,7 +380,7 @@ def IGTD_square_error(source, target, max_step=1000, switch_t=0, val_step=50, mi
     source: a symmetric ranking matrix with zero diagonal elements.
     target: a symmetric ranking matrix with zero diagonal elements. 'source' and 'target' should have the same size.
     max_step: the maximum steps that the algorithm should run if never converges.
-    switch_t: the threshold to determine whether switch should happen
+    switch_t: the threshold to determine whether feature switching should happen
     val_step: number of steps for checking gain on the objective function to determine convergence
     min_gain: if the objective function is not improved more than 'min_gain' in 'val_step' steps,
         the algorithm terminates.
@@ -345,7 +422,7 @@ def IGTD_square_error(source, target, max_step=1000, switch_t=0, val_step=50, mi
     run_time = [0]
 
     for s in range(max_step):
-        delta = np.ones(num) * np.inf
+        delta = - np.ones(num) * np.inf
 
         # randomly pick a row that has not been considered for the longest time
         idr = np.where(step_record == np.min(step_record))[0]
@@ -372,12 +449,12 @@ def IGTD_square_error(source, target, max_step=1000, switch_t=0, val_step=50, mi
                     np.sum(np.square(source[(j + 1):, i] - target[(j + 1):, j])) + np.square(source[i, j] - target[j, i])
             err_test = err_i + err_j - np.square(source[i, j] - target[j, i])
 
-            delta[jj] = err_test - err_ori
+            delta[jj] = err_ori - err_test
 
         delta_norm = delta / pre_err
-        id = np.where(delta_norm <= switch_t)[0]
+        id = np.where(delta_norm >= switch_t)[0]
         if len(id) > 0:
-            jj = np.argmin(delta)
+            jj = np.argmax(delta)
 
             # Update the error associated with each row
             if ii < jj:
@@ -414,7 +491,7 @@ def IGTD_square_error(source, target, max_step=1000, switch_t=0, val_step=50, mi
             jj_v = source[:, jj].copy()
             source[:, ii] = jj_v
             source[:, jj] = ii_v
-            err = delta[jj] + pre_err
+            err = pre_err - delta[jj]
 
             # update rearrange index
             t = index[ii]
@@ -512,7 +589,7 @@ def generate_image_data(data, index, num_row, num_column, coord, image_folder=No
     data_2 = data_2[:, index]
     max_v = np.max(data_2)
     min_v = np.min(data_2)
-    data_2 = 255 - (data_2 - min_v) / (max_v - min_v) * 255 # So that black means high value
+    data_2 = 255 - (data_2 - min_v) / (max_v - min_v) * 255 # Black color in heatmap indicates high value
 
     image_data = np.empty((num_row, num_column, data_2.shape[0]))
     image_data.fill(np.nan)
@@ -520,7 +597,14 @@ def generate_image_data(data, index, num_row, num_column, coord, image_folder=No
         data_i = np.empty((num_row, num_column))
         data_i.fill(np.nan)
         data_i[coord] = data_2[i, :]
+
+        # find nan in data_i and change them to 255
+        idd = np.where(np.isnan(data_i))
+        data_i[idd] = 255
+
         image_data[:, :, i] = data_i
+        image_data[:, :, i] = 255 - image_data[:, :, i] # High values in the array format of image data correspond
+                                                        # to high values in tabular data
         if image_folder is not None:
             fig = plt.figure()
             plt.imshow(data_i, cmap='gray', vmin=0, vmax=255)
@@ -543,8 +627,9 @@ def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image
 
     Input:
     norm_d: a 2D array or data frame, which is the tabular data. Its size is n_samples by n_features
-    scale: a list of two positive integers. The number of pixel rows and columns in the image representations,
-        into which the tabular data will be converted.
+    scale: a list of two positive integers. It includes the numbers of pixel rows and columns in the image
+        representation. The total number of pixels should not be smaller than the number of features,
+        i.e. scale[0] * scale[1] >= n_features.
     fea_dist_method: a string indicating the method used for calculating the pairwise distances between features, 
         for which there are three options.
         'Pearson' uses the Pearson correlation coefficient to evaluate the similarity between features.
@@ -559,11 +644,11 @@ def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image
     normDir: a string indicating the directory to save result files.
     error: a string indicating the function to evaluate the difference between feature distance ranking and pixel
         distance ranking. 'abs' indicates the absolute function. 'squared' indicates the square function.
-    switch_t: in each iteration, if the smallest error change rate resulted from all possible feature swapping
-        is not larger than switch_t, the feature swapping that results in the smallest error change rate will
-        be performed. Error change rate is the difference between the errors after and before feature swapping
-        divided by the error before feature swapping. If switch_t <= 0, the IGTD algorithm monotonically reduces
-        the error during optimization.
+    switch_t: the threshold on error change rate. Error change rate is
+        (error before feature swapping - error after feature swapping) / error before feature swapping.
+        In each iteration, if the largest error change rate resulted from all possible feature swappings
+        is not smaller than switch_t, the feature swapping resulting in the largest error change rate will
+        be performed. If switch_t >= 0, the IGTD algorithm monotonically reduces the error during optimization.
     min_gain: if the error reduction rate is not larger than min_gain for val_step iterations, the algorithm converges.
     
     Return:
@@ -581,8 +666,10 @@ def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image
     5.  error_and_runtime.png shows the change of error vs. time during the optimization process.
     6.  error_and_iteration.png shows the change of error vs. iteration during the optimization process.
     7.  optimized_feature_ranking.png shows the feature distance ranking matrix after optimization.
-    8.  data folder includes two image data files for each sample. The txt file is the image data in matrix format.
-        The png file shows the visualization of image data.
+    8.  data folder includes two image data files for each sample. The txt file is the image data in matrix format,
+        in which high values correspond to high values of features in tabular data. The png file shows the
+        visualization of image data, in which black and white correspond to high and low values of features in
+        tabular data, respectively.
     '''
 
     if os.path.exists(normDir):
@@ -596,7 +683,7 @@ def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image
     plt.close(fig)
 
     coordinate, ranking_image = generate_matrix_distance_ranking(num_r=scale[0], num_c=scale[1],
-                                                                 method=image_dist_method)
+                                                                 method=image_dist_method, num=norm_d.shape[1])
     fig = plt.figure(figsize=(save_image_size, save_image_size))
     plt.imshow(np.max(ranking_image) - ranking_image, cmap='gray', interpolation='nearest')
     plt.savefig(fname=normDir + '/image_ranking.png', bbox_inches='tight', pad_inches=0)

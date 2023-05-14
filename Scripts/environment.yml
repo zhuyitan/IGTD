@@ -11,3 +11,4 @@ dependencies:
   - scikit-learn=0.21.2
   - tensorflow=1.14.0
   - tensorflow-gpu=1.14.0
+  - astropy=3.1.2

@@ -1,6 +1,6 @@
 import pandas as pd
 import os
-from IGTD_Functions import min_max_transform, table_to_image
+from IGTD_Functions import min_max_transform, table_to_image, select_features_by_variation
 
 
 
@@ -15,7 +15,10 @@ val_step = 300  # The number of iterations for determining algorithm convergence
 # Import the example data and linearly scale each feature so that its minimum and maximum values are 0 and 1, respectively.
 data = pd.read_csv('../Data/Example_Gene_Expression_Tabular_Data.txt', low_memory=False, sep='\t', engine='c',
                    na_values=['na', '-', ''], header=0, index_col=0)
-data = data.iloc[:, :num]
+# Select features with large variations across samples
+id = select_features_by_variation(data, variation_measure='var', num=num)
+data = data.iloc[:, id]
+# Perform min-max transformation so that the maximum and minimum values of every feature become 1 and 0, respectively.
 norm_data = min_max_transform(data.values)
 norm_data = pd.DataFrame(norm_data, columns=data.columns, index=data.index)
 
@@ -37,6 +40,7 @@ table_to_image(norm_data, [num_row, num_col], fea_dist_method, image_dist_method
 fea_dist_method = 'Pearson'
 image_dist_method = 'Manhattan'
 error = 'squared'
+norm_data = norm_data.iloc[:, :800]
 result_dir = '../Results/Table_To_Image_Conversion/Test_2'
 os.makedirs(name=result_dir, exist_ok=True)
 table_to_image(norm_data, [num_row, num_col], fea_dist_method, image_dist_method, save_image_size,

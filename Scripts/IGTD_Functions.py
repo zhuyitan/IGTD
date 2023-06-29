@@ -352,7 +352,7 @@ def IGTD_absolute_error(source, target, max_step=1000, switch_t=0, val_step=50, 
 
         pre_err = err
 
-    index_record = index_record[:len(err_record), :].astype(np.int)
+    index_record = index_record[:len(err_record), :].astype(np.int64)
     if save_folder is not None:
         pd.DataFrame(index_record).to_csv(save_folder + '/' + file_name + '_index.txt', header=False, index=False,
             sep='\t', line_terminator='\r\n')

@@ -554,7 +554,7 @@ def IGTD(source, target, err_measure='abs', max_step=1000, switch_t=0, val_step=
 
 
 
-def generate_image_data(data, index, num_row, num_column, coord, image_folder=None, file_name=''):
+def generate_image_data(data, index, num_row, num_column, coord,target_class, image_folder=None, file_name=''):
     '''
     This function generates the data in image format according to rearrangement indices. It saves the data
     sample-by-sample in both txt files and image files
@@ -568,6 +568,7 @@ def generate_image_data(data, index, num_row, num_column, coord, image_folder=No
     coord: coordinates of features in the image/matrix
     image_folder: directory to save the image and txt data files. If none, no data file is saved
     file_name: a string as a part of the file names to save data
+    target_class: the class of the target variable
 
     Return:
     image_data: the generated data, a 3D numpy array. The third dimension is across samples. The range of values
@@ -606,14 +607,16 @@ def generate_image_data(data, index, num_row, num_column, coord, image_folder=No
         image_data[:, :, i] = 255 - image_data[:, :, i] # High values in the array format of image data correspond
                                                         # to high values in tabular data
         if image_folder is not None:
+            a=0
             fig = plt.figure()
             plt.imshow(data_i, cmap='gray', vmin=0, vmax=255)
-            plt.axis('scaled')
-            plt.savefig(fname=image_folder + '/' + file_name + '_' + samples[i] + '_image.png', bbox_inches='tight',
+            #plt.axis('scaled')
+            plt.axis('off')
+            plt.savefig(fname=image_folder + '/' + target_class[int(samples[i])]+ '_'+ file_name + '_' + samples[i] + '_image.png', bbox_inches='tight',
                         pad_inches=0)
             plt.close(fig)
-
-            pd.DataFrame(image_data[:, :, i], index=None, columns=None).to_csv(image_folder + '/' + file_name + '_'
+            
+            pd.DataFrame(image_data[:, :, i], index=None, columns=None).to_csv(image_folder + '/' + target_class[int(samples[i])] +'_'+file_name + '_'
                 + samples[i] + '_data.txt', header=None, index=None, sep='\t', line_terminator='\r\n')
 
     return image_data, samples
@@ -621,7 +624,7 @@ def generate_image_data(data, index, num_row, num_column, coord, image_folder=No
 
 
 def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image_size, max_step, val_step, normDir,
-                   error, switch_t=0, min_gain=0.00001):
+                   error,target_class, switch_t=0, min_gain=0.00001):
     '''
     This function converts tabular data into images using the IGTD algorithm. 
 
@@ -650,7 +653,8 @@ def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image
         is not smaller than switch_t, the feature swapping resulting in the largest error change rate will
         be performed. If switch_t >= 0, the IGTD algorithm monotonically reduces the error during optimization.
     min_gain: if the error reduction rate is not larger than min_gain for val_step iterations, the algorithm converges.
-    
+    target_class: Array having class labels for each particular row of table
+
     Return:
     This function does not return any variable, but saves multiple result files, which are the following
     1.  Results.pkl stores the original tabular data, the generated image data, and the names of samples. The generated
@@ -712,7 +716,7 @@ def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image
     plt.close(fig)
 
     data, samples = generate_image_data(data=norm_d, index=index[min_id, :], num_row=scale[0], num_column=scale[1],
-        coord=coordinate, image_folder=normDir + '/data', file_name='')
+        coord=coordinate,target_class=target_class, image_folder=normDir + '/data', file_name='')
 
     output = open(normDir + '/Results.pkl', 'wb')
     cp.dump(norm_d, output)

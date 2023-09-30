@@ -607,7 +607,6 @@ def generate_image_data(data, index, num_row, num_column, coord,target_class, im
         image_data[:, :, i] = 255 - image_data[:, :, i] # High values in the array format of image data correspond
                                                         # to high values in tabular data
         if image_folder is not None:
-            a=0
             fig = plt.figure()
             plt.imshow(data_i, cmap='gray', vmin=0, vmax=255)
             #plt.axis('scaled')

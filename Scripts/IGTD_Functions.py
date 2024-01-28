@@ -200,7 +200,7 @@ def generate_matrix_distance_ranking(num_r, num_c, method='Euclidean', num=None)
 
 
 
-def IGTD_absolute_error(source, target, max_step=1000, switch_t=0, val_step=50, min_gain=0.00001, random_state=1,
+def IGTD_absolute_error(source, target, max_step=30000, switch_t=0, val_step=300, min_gain=0.00001, random_state=1,
                         save_folder=None, file_name=''):
     '''
     This function switches the order of rows (columns) in the source ranking matrix to make it similar to the target
@@ -367,7 +367,7 @@ def IGTD_absolute_error(source, target, max_step=1000, switch_t=0, val_step=50, 
 
 
 
-def IGTD_square_error(source, target, max_step=1000, switch_t=0, val_step=50, min_gain=0.00001, random_state=1,
+def IGTD_square_error(source, target, max_step=30000, switch_t=0, val_step=300, min_gain=0.00001, random_state=1,
                       save_folder=None, file_name=''):
     '''
     This function switches the order of rows (columns) in the source ranking matrix to make it similar to the target
@@ -535,7 +535,7 @@ def IGTD_square_error(source, target, max_step=1000, switch_t=0, val_step=50, mi
 
 
 
-def IGTD(source, target, err_measure='abs', max_step=1000, switch_t=0, val_step=50, min_gain=0.00001, random_state=1,
+def IGTD(source, target, err_measure='abs', max_step=30000, switch_t=0, val_step=300, min_gain=0.00001, random_state=1,
          save_folder=None, file_name=''):
     '''
     This is just a wrapper function that wraps the two search functions using different error measures.

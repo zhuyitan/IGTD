@@ -621,7 +621,7 @@ def generate_image_data(data, index, num_row, num_column, coord, image_folder=No
 
 
 def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image_size, max_step, val_step, normDir,
-                   error, switch_t=0, min_gain=0.00001):
+                   error, switch_t=0, min_gain=0.000001):
     '''
     This function converts tabular data into images using the IGTD algorithm. 
 
@@ -716,6 +716,229 @@ def table_to_image(norm_d, scale, fea_dist_method, image_dist_method, save_image
 
     output = open(normDir + '/Results.pkl', 'wb')
     cp.dump(norm_d, output)
+    cp.dump(data, output)
+    cp.dump(samples, output)
+    output.close()
+
+    output = open(normDir + '/Results_Auxiliary.pkl', 'wb')
+    cp.dump(ranking_feature, output)
+    cp.dump(ranking_image, output)
+    cp.dump(coordinate, output)
+    cp.dump(err, output)
+    cp.dump(time, output)
+    output.close()
+
+
+
+def multi_generate_image_data(data_list, index, num_row, num_column, coord, image_folder=None, file_name=''):
+    '''
+    This function generates data in the multi-channel image format according to rearrangement indices.
+    It saves the data sample-by-sample and channel-by-channel in both txt files and image files
+
+    Input:
+    data_list: a list of original tabular data, which are 2D arrays or data frames, all with a dimension of
+        n_samples by n_features. Each data table is one feature type. The length of data_list is the channel number.
+        Features have a corresponding relationship across data tables, i.e. the ith features in all data tables
+        are associated.
+    index: indices of features obtained through optimization, according to which the features can be
+        arranged into a num_r by num_c image.
+    num_row: number of rows in image
+    num_column: number of columns in image
+    coord: coordinates of features in the image/matrix
+    image_folder: directory to save the image and txt data files. If none, no data file is saved
+    file_name: a string as a part of the file names to save data
+
+    Return:
+    image_data: the generated data, a 4D numpy array. Its dimensions are [number of channels,
+        number of pixel rows in image, number of pixel columns in image, number of samples]. The range of values
+        is [0, 255]. Small values actually indicate high values in the original data.
+    samples: the names of indices of the samples
+    '''
+
+    if isinstance(data_list[0], pd.DataFrame):
+        data_list_copy = data_list
+        data_list = []
+        samples = data_list_copy[0].index.map(np.str)
+        for i in range(len(data_list_copy)):
+            # Need to check whether the sample names are consistent.
+            if np.sum(samples != data_list_copy[i].index.map(np.str)) > 0:
+                sys.exit('Channel ' + str(i) + ' sample names are NOT consistent.')
+            else:
+                data_list.append(data_list_copy[i].values)
+    else:
+        samples = [str(i) for i in range(data_list[0].shape[0])]
+
+    if os.path.exists(image_folder):
+        shutil.rmtree(image_folder)
+    os.mkdir(image_folder)
+
+
+
+    num_sample = data_list[0].shape[0]
+    num_channel = len(data_list)
+    image_data = np.empty((num_channel, num_row, num_column, num_sample))
+    image_data.fill(np.nan)
+
+    for j in range(num_channel):
+
+        data_2 = data_list[j].copy()
+        data_2 = data_2[:, index]
+        max_v = np.max(data_2)
+        min_v = np.min(data_2)
+        data_2 = 255 - (data_2 - min_v) / (max_v - min_v) * 255 # Black color in heatmap indicates high value
+
+        for i in range(num_sample):
+            data_i = np.empty((num_row, num_column))
+            data_i.fill(np.nan)
+            data_i[coord] = data_2[i, :]
+
+            # find nan in data_i and change them to 255
+            idd = np.where(np.isnan(data_i))
+            data_i[idd] = 255
+
+            image_data[j, :, :, i] = data_i
+            image_data[j, :, :, i] = 255 - image_data[j, :, :, i] # High values in the array format of image data correspond
+            # to high values in tabular data
+            if image_folder is not None:
+                fig = plt.figure()
+                plt.imshow(data_i, cmap='gray', vmin=0, vmax=255)
+                plt.axis('scaled')
+                plt.savefig(fname=image_folder + '/' + file_name + '_' + samples[i] + '_image_channel_' + str(j) +
+                                  '.png', bbox_inches='tight', pad_inches=0)
+                plt.close(fig)
+
+                pd.DataFrame(image_data[j, :, :, i], index=None, columns=None).to_csv(image_folder + '/' + file_name +
+                    '_' + samples[i] + '_data_channel_' + str(j) + '.txt', header=None, index=None, sep='\t',
+                    line_terminator='\r\n')
+
+    return image_data, samples
+
+
+
+def multi_table_to_image(norm_d_list, weight_list, fea_dist_method_list, scale, image_dist_method, save_image_size,
+                         max_step, val_step, normDir, error, switch_t=0, min_gain=0.000001):
+    '''
+    This function converts multiple data tables of different feature types into multi-channel images.
+    Each channel represents one feature type.
+
+    Input:
+    norm_d_list: a list of 2D arrays or data frames, which are the multiple data tables that need to be
+        converted into multi-channel images. Each data table is one feature type.
+        The length of norm_d is the channel number. Every data table in norm_d_list has a size of
+        n_samples by n_features. Features have a corresponding relationship across data tables, i.e. the
+        ith features in all data tables are associated.
+    weight_list: a list of weights to be applied when calculating the feature distance rank matrix based on
+        the multiple types/tables of data.
+    fea_dist_method_list: a list of strings indicating the methods for calculating the pairwise distances
+        between features in each type/table of data. There are three options for feature distance metrics.
+        'Pearson' uses the Pearson correlation coefficient to evaluate the similarity between features.
+        'Spearman' uses the Spearman correlation coefficient to evaluate the similarity between features.
+        'set' uses the Jaccard index to evaluate the similarity between features that are binary variables.
+    scale: a list of two positive integers. It includes the numbers of pixel rows and columns in the image
+        representation. The total number of pixels should not be smaller than the number of features,
+        i.e. scale[0] * scale[1] >= n_features.
+    image_dist_method: a string indicating the method used for calculating the distances between pixels in image.
+        It can be either 'Euclidean' or 'Manhattan'.
+    save_image_size: size of images (in inches) for saving visual results.
+    max_step: the maximum number of iterations that the IGTD algorithm will run if never converges.
+    val_step: the number of iterations for determining algorithm convergence. If the error reduction rate is smaller than
+        min_gain for val_step iterations, the algorithm converges.
+    normDir: a string indicating the directory to save result files.
+    error: a string indicating the function to evaluate the difference between feature distance ranking and pixel
+        distance ranking. 'abs' indicates the absolute function. 'squared' indicates the square function.
+    switch_t: the threshold on error change rate. Error change rate is
+        (error before feature swapping - error after feature swapping) / error before feature swapping.
+        In each iteration, if the largest error change rate resulted from all possible feature swappings
+        is not smaller than switch_t, the feature swapping resulting in the largest error change rate will
+        be performed. If switch_t >= 0, the IGTD algorithm monotonically reduces the error during optimization.
+    min_gain: if the error reduction rate is not larger than min_gain for val_step iterations, the algorithm converges.
+
+    Return:
+    This function does not return any variable, but saves multiple result files, which are the following
+    1.  Results.pkl stores the original tabular data, the generated image data, and the names of samples. The generated
+        image data is a 4D numpy array. Its size is [number of channels, number of pixel rows in image,
+        number of pixel columns in image, number of samples]. The range of values is [0, 255].
+        Small values in the array actually correspond to high values in the tabular data.
+    2.  Results_Auxiliary.pkl stores the ranking matrix of pairwise feature distances before optimization,
+        the ranking matrix of pairwise pixel distances, the coordinates of pixels when concatenating pixels
+        row by row from image to form the pixel distance ranking matrix, error in each iteration,
+        and time (in seconds) when completing each iteration.
+    3.  original_feature_ranking.png shows the feature distance ranking matrix averaged across data types/tables
+        using weight_list before optimization. original_feature_ranking_channel_*.png is the feature distance
+        ranking matrix of channel *.
+    4.  image_ranking.png shows the pixel distance ranking matrix.
+    5.  error_and_runtime.png shows the change of error vs. time during the optimization process.
+    6.  error_and_iteration.png shows the change of error vs. iteration during the optimization process.
+    7.  optimized_feature_ranking.png shows the feature distance ranking matrix after optimization.
+    8.  data folder includes two types of image data files for each sample. The txt files are the image data in matrix format,
+        in which high values correspond to high values of features in tabular data. The png files show the
+        visualizations of image data, in which black and white correspond to high and low values of features in
+        tabular data, respectively.
+    '''
+
+    if os.path.exists(normDir):
+        shutil.rmtree(normDir)
+    os.mkdir(normDir)
+
+    sum_weight = np.sum(weight_list)
+    for i in range(len(weight_list)):
+        weight_list[i] = weight_list[i] / sum_weight
+
+    num_channel = len(norm_d_list)
+    ranking_feature_list = []
+    corr_list = []
+    for i in range(num_channel):
+        a, b = generate_feature_distance_ranking(data=norm_d_list[i], method=fea_dist_method_list[i])
+        ranking_feature_list.append(a)
+        corr_list.append(b)
+        fig = plt.figure(figsize=(save_image_size, save_image_size))
+        plt.imshow(np.max(ranking_feature_list[i]) - ranking_feature_list[i], cmap='gray', interpolation='nearest')
+        plt.savefig(fname=normDir + '/original_feature_ranking_channel_' + str(i) + '.png', bbox_inches='tight',
+                    pad_inches=0)
+        plt.close(fig)
+
+    ranking_feature = np.zeros((ranking_feature_list[0].shape[0], ranking_feature_list[0].shape[1]))
+    for i in range(num_channel):
+        ranking_feature = ranking_feature + ranking_feature_list[i] * weight_list[i]
+    fig = plt.figure(figsize=(save_image_size, save_image_size))
+    plt.imshow(np.max(ranking_feature) - ranking_feature, cmap='gray', interpolation='nearest')
+    plt.savefig(fname=normDir + '/original_feature_ranking.png', bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+    coordinate, ranking_image = generate_matrix_distance_ranking(num_r=scale[0], num_c=scale[1],
+                                                                 method=image_dist_method, num=norm_d_list[0].shape[1])
+    fig = plt.figure(figsize=(save_image_size, save_image_size))
+    plt.imshow(np.max(ranking_image) - ranking_image, cmap='gray', interpolation='nearest')
+    plt.savefig(fname=normDir + '/image_ranking.png', bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+    index, err, time = IGTD(source=ranking_feature, target=ranking_image, err_measure=error, max_step=max_step,
+                            switch_t=switch_t, val_step=val_step, min_gain=min_gain, random_state=1,
+                            save_folder=normDir + '/' + error, file_name='')
+
+    fig = plt.figure()
+    plt.plot(time, err)
+    plt.savefig(fname=normDir + '/error_and_runtime.png', bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+    fig = plt.figure()
+    plt.plot(range(len(err)), err)
+    plt.savefig(fname=normDir + '/error_and_iteration.png', bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+    min_id = np.argmin(err)
+    ranking_feature_random = ranking_feature[index[min_id, :], :]
+    ranking_feature_random = ranking_feature_random[:, index[min_id, :]]
+
+    fig = plt.figure(figsize=(save_image_size, save_image_size))
+    plt.imshow(np.max(ranking_feature_random) - ranking_feature_random, cmap='gray',
+               interpolation='nearest')
+    plt.savefig(fname=normDir + '/optimized_feature_ranking.png', bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+    data, samples = multi_generate_image_data(data_list=norm_d_list, index=index[min_id, :], num_row=scale[0],
+        num_column=scale[1], coord=coordinate, image_folder=normDir + '/data', file_name='')
+
+    output = open(normDir + '/Results.pkl', 'wb')
+    cp.dump(norm_d_list, output)
     cp.dump(data, output)
     cp.dump(samples, output)
     output.close()

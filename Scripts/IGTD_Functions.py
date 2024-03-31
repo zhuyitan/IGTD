@@ -227,7 +227,7 @@ def IGTD_absolute_error(source, target, max_step=30000, switch_t=0, val_step=300
     run_time: the time at which each step is completed in the optimization process
     '''
 
-    np.random.RandomState(seed=random_state)
+    r = np.random.RandomState(seed=random_state)
     if os.path.exists(save_folder):
         shutil.rmtree(save_folder)
     os.mkdir(save_folder)
@@ -258,7 +258,7 @@ def IGTD_absolute_error(source, target, max_step=30000, switch_t=0, val_step=300
 
         # randomly pick a row that has not been considered for the longest time
         idr = np.where(step_record == np.min(step_record))[0]
-        ii = idr[np.random.permutation(len(idr))[0]]
+        ii = idr[r.permutation(len(idr))[0]]
 
         for jj in range(num):
             if jj == ii:
@@ -395,7 +395,7 @@ def IGTD_square_error(source, target, max_step=30000, switch_t=0, val_step=300, 
     '''
 
 
-    np.random.RandomState(seed=random_state)
+    r = np.random.RandomState(seed=random_state)
     if os.path.exists(save_folder):
         shutil.rmtree(save_folder)
     os.mkdir(save_folder)
@@ -426,7 +426,7 @@ def IGTD_square_error(source, target, max_step=30000, switch_t=0, val_step=300, 
 
         # randomly pick a row that has not been considered for the longest time
         idr = np.where(step_record == np.min(step_record))[0]
-        ii = idr[np.random.permutation(len(idr))[0]]
+        ii = idr[r.permutation(len(idr))[0]]
 
         for jj in range(num):
             if jj == ii:
